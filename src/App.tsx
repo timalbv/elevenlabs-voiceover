@@ -618,9 +618,10 @@ function App() {
           </div>
         ) : (
           historyItems.map((item) => {
+            const itemText = item.text || 'No text';
             const isExpanded = expandedItems.has(item.history_item_id);
-            const shouldTruncate = item.text.length > 80;
-            const textPreview = shouldTruncate && !isExpanded ? item.text.substring(0, 80) + '...' : item.text;
+            const shouldTruncate = itemText.length > 80;
+            const textPreview = shouldTruncate && !isExpanded ? itemText.substring(0, 80) + '...' : itemText;
             
             return (
             <div key={item.history_item_id} style={{ background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--glass-border)' }}>
