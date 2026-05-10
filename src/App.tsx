@@ -4,10 +4,10 @@ import {
   Volume2, Mic2, AlertCircle, Cpu, Zap, FileAudio
 } from 'lucide-react';
 import { 
-  getVoices, generateAudio, 
+  getVoices, generateAudio, getUserSubscription, getHistory, getHistoryAudio,
   MODELS, OUTPUT_FORMATS, LANGUAGES
 } from './services/elevenlabs';
-import type { Voice, VoiceSettings } from './services/elevenlabs';
+import type { Voice, VoiceSettings, UserSubscription, HistoryItem } from './services/elevenlabs';
 
 function App() {
   // API Key State
@@ -24,6 +24,14 @@ function App() {
   const [selectedLanguage, setSelectedLanguage] = useState(LANGUAGES[0].id);
   const [isLoadingVoices, setIsLoadingVoices] = useState(false);
   const [voicesError, setVoicesError] = useState('');
+
+  // Subscription State
+  const [subscription, setSubscription] = useState<UserSubscription | null>(null);
+
+  // History State
+  const [historyItems, setHistoryItems] = useState<HistoryItem[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [playingHistoryId, setPlayingHistoryId] = useState<string | null>(null);
 
   // Voice Settings State
   const [settings, setSettings] = useState<VoiceSettings>(() => {
@@ -58,9 +66,36 @@ function App() {
 
   useEffect(() => {
     if (isKeySaved && apiKey) {
-      fetchVoicesList();
+      fetchData();
     }
   }, [isKeySaved]);
+
+  const fetchData = async () => {
+    fetchVoicesList();
+    fetchSubscription();
+    fetchHistoryData();
+  };
+
+  const fetchSubscription = async () => {
+    try {
+      const sub = await getUserSubscription(apiKey);
+      setSubscription(sub);
+    } catch (err) {
+      console.error('Failed to fetch subscription', err);
+    }
+  };
+
+  const fetchHistoryData = async () => {
+    setIsLoadingHistory(true);
+    try {
+      const hist = await getHistory(apiKey);
+      setHistoryItems(hist);
+    } catch (err) {
+      console.error('Failed to fetch history', err);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
 
   const fetchVoicesList = async () => {
     setIsLoadingVoices(true);
@@ -95,6 +130,8 @@ function App() {
     setApiKey('');
     setIsKeySaved(false);
     setVoices([]);
+    setSubscription(null);
+    setHistoryItems([]);
     setAudioUrl(null);
   };
 
@@ -125,10 +162,31 @@ function App() {
       );
       const url = URL.createObjectURL(blob);
       setAudioUrl(url);
+      
+      // Refresh sub and history
+      fetchSubscription();
+      fetchHistoryData();
     } catch (err: any) {
       setGenerateError(err.message);
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const handlePlayHistory = async (historyItemId: string) => {
+    setPlayingHistoryId(historyItemId);
+    try {
+      const blob = await getHistoryAudio(apiKey, historyItemId);
+      const url = URL.createObjectURL(blob);
+      setAudioUrl(url);
+      if (audioRef.current) {
+        audioRef.current.src = url;
+        audioRef.current.play();
+      }
+    } catch (err) {
+      console.error('Error playing history audio', err);
+    } finally {
+      setPlayingHistoryId(null);
     }
   };
 
@@ -155,12 +213,23 @@ function App() {
 
   return (
     <div className="container animate-fade-in">
-      <header>
-        <h1 className="text-gradient" style={{ fontSize: '2rem', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
-          <Zap size={32} color="var(--accent-primary)" />
-          Liquid Voice Synthesizer
-        </h1>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Next-Generation AI Audio Generation Powered by ElevenLabs</p>
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+        <div>
+          <h1 className="text-gradient" style={{ fontSize: '2rem', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <Zap size={32} color="var(--accent-primary)" />
+            Liquid Voice
+          </h1>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Powered by ElevenLabs</p>
+        </div>
+        
+        {isKeySaved && subscription && (
+          <div className="glass-panel" style={{ padding: '0.5rem 1rem', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '2px' }}>Remaining Quota</div>
+            <div style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--success)' }}>
+              {subscription.character_limit - subscription.character_count} <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>chars</span>
+            </div>
+          </div>
+        )}
       </header>
 
       {!isKeySaved ? (
@@ -448,6 +517,46 @@ function App() {
                   style={{ width: '100%', outline: 'none' }} 
                   autoPlay
                 />
+              </div>
+            )}
+
+            {/* History Panel */}
+            {historyItems.length > 0 && (
+              <div className="glass-panel" style={{ padding: '1.5rem', flex: 1, display: 'flex', flexDirection: 'column', maxHeight: '400px', overflowY: 'auto' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', position: 'sticky', top: 0, zIndex: 10, background: 'var(--background)', paddingBottom: '0.5rem', borderBottom: '1px solid var(--glass-border)' }}>
+                  <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '1rem' }}>
+                    <Activity size={18} color="var(--accent-primary)" /> Generation History
+                  </h3>
+                  <button className="glass-button" onClick={fetchHistoryData} disabled={isLoadingHistory} style={{ padding: '4px 8px', fontSize: '0.75rem' }}>
+                    {isLoadingHistory ? 'Refreshing...' : 'Refresh'}
+                  </button>
+                </div>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  {historyItems.map((item) => (
+                    <div key={item.history_item_id} style={{ background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--glass-border)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+                        <div style={{ flex: 1, paddingRight: '1rem' }}>
+                          <p style={{ fontSize: '0.85rem', color: 'var(--text-primary)', margin: 0, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                            "{item.text}"
+                          </p>
+                        </div>
+                        <button 
+                          className="glass-button" 
+                          style={{ padding: '6px 10px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+                          onClick={() => handlePlayHistory(item.history_item_id)}
+                          disabled={playingHistoryId === item.history_item_id}
+                        >
+                          {playingHistoryId === item.history_item_id ? <Activity className="animate-spin" size={14} /> : <Volume2 size={14} />} 
+                          Play
+                        </button>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                        <span>{new Date(item.date_unix * 1000).toLocaleString()}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 

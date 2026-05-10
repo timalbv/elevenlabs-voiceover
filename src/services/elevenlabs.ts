@@ -43,6 +43,20 @@ export interface VoiceSettings {
   speed: number;
 }
 
+export interface UserSubscription {
+  character_count: number;
+  character_limit: number;
+}
+
+export interface HistoryItem {
+  history_item_id: string;
+  text: string;
+  voice_id: string;
+  voice_name: string;
+  date_unix: number;
+}
+
+
 export const getVoices = async (apiKey: string): Promise<Voice[]> => {
   try {
     const response = await axios.get(`${BASE_URL}/voices`, {
@@ -71,6 +85,49 @@ export const getVoice = async (apiKey: string, voiceId: string): Promise<Voice> 
   } catch (error) {
     console.error('Error fetching voice:', error);
     throw new Error('Failed to fetch voice. Invalid ID or API key.');
+  }
+};
+
+export const getUserSubscription = async (apiKey: string): Promise<UserSubscription> => {
+  try {
+    const response = await axios.get(`${BASE_URL}/user/subscription`, {
+      headers: {
+        'xi-api-key': apiKey,
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching subscription:', error);
+    throw new Error('Failed to fetch user subscription.');
+  }
+};
+
+export const getHistory = async (apiKey: string): Promise<HistoryItem[]> => {
+  try {
+    const response = await axios.get(`${BASE_URL}/history`, {
+      headers: {
+        'xi-api-key': apiKey,
+      },
+    });
+    return response.data.history;
+  } catch (error) {
+    console.error('Error fetching history:', error);
+    throw new Error('Failed to fetch generation history.');
+  }
+};
+
+export const getHistoryAudio = async (apiKey: string, historyItemId: string): Promise<Blob> => {
+  try {
+    const response = await axios.get(`${BASE_URL}/history/${historyItemId}/audio`, {
+      headers: {
+        'xi-api-key': apiKey,
+      },
+      responseType: 'blob',
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching history audio:', error);
+    throw new Error('Failed to fetch history audio.');
   }
 };
 
