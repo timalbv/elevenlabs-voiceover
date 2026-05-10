@@ -26,13 +26,27 @@ function App() {
   const [voicesError, setVoicesError] = useState('');
 
   // Voice Settings State
-  const [settings, setSettings] = useState<VoiceSettings>({
-    stability: 0.5,
-    similarity_boost: 0.75,
-    style: 0.0,
-    use_speaker_boost: true,
-    speed: 1.0
+  const [settings, setSettings] = useState<VoiceSettings>(() => {
+    const saved = localStorage.getItem('elevenlabs_voice_settings');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error('Failed to parse settings', e);
+      }
+    }
+    return {
+      stability: 0.5,
+      similarity_boost: 0.75,
+      style: 0.0,
+      use_speaker_boost: true,
+      speed: 1.0
+    };
   });
+
+  useEffect(() => {
+    localStorage.setItem('elevenlabs_voice_settings', JSON.stringify(settings));
+  }, [settings]);
 
   // Text & Generation State
   const [text, setText] = useState('');

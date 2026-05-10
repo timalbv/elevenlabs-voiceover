@@ -10,7 +10,6 @@ export const MODELS = [
 ];
 
 export const OUTPUT_FORMATS = [
-  { id: 'pcm_44100', name: 'WAV - 44.1kHz (Lossless/Best)' },
   { id: 'pcm_24000', name: 'WAV - 24.0kHz (High)' },
   { id: 'mp3_44100_192', name: 'MP3 - 192kbps (Highest)' },
   { id: 'mp3_44100_128', name: 'MP3 - 128kbps (Standard)' },
