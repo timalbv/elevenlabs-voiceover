@@ -124,6 +124,21 @@ function App() {
     return (text.length / 1000) * model.costPer1k;
   };
 
+  const calculateEstimatedDuration = () => {
+    if (!text.trim()) return '0s';
+    // Average speaking rate is roughly 15 characters per second
+    const baseSeconds = text.length / 15;
+    // Adjust by user-defined speed setting
+    const totalSeconds = baseSeconds / settings.speed;
+    
+    if (totalSeconds < 60) {
+      return `~${Math.max(1, Math.round(totalSeconds))}s`;
+    }
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = Math.round(totalSeconds % 60);
+    return `~${minutes}m ${seconds}s`;
+  };
+
   return (
     <div className="container animate-fade-in">
       <header>
@@ -359,13 +374,20 @@ function App() {
                   <div style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginBottom: '4px' }}>Characters</div>
                   <div style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--text-primary)' }}>{text.length}</div>
                 </div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginBottom: '4px' }}>Est. Duration</div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--text-primary)' }}>{calculateEstimatedDuration()}</div>
+                  <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem', marginTop: '4px' }}>
+                    *At {settings.speed}x speed
+                  </div>
+                </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginBottom: '4px' }}>Estimated Cost</div>
                   <div style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--accent-primary)' }}>
                     ${calculateCost().toFixed(4)}
                   </div>
                   <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem', marginTop: '4px' }}>
-                    *Based on standard API rate
+                    *Based on API rate
                   </div>
                 </div>
               </div>
