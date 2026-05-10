@@ -33,6 +33,8 @@ function App() {
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [playingHistoryId, setPlayingHistoryId] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+  const historyAudioRef = useRef<HTMLAudioElement | null>(null);
 
   // Voice Settings State
   const [settings, setSettings] = useState<VoiceSettings>(() => {
@@ -175,20 +177,43 @@ function App() {
   };
 
   const handlePlayHistory = async (historyItemId: string) => {
+    // Stop currently playing history audio if any
+    if (historyAudioRef.current) {
+      historyAudioRef.current.pause();
+    }
+    
+    // If clicking the same item that's playing, just stop it and return
+    if (playingHistoryId === historyItemId) {
+      setPlayingHistoryId(null);
+      return;
+    }
+
     setPlayingHistoryId(historyItemId);
     try {
       const blob = await getHistoryAudio(apiKey, historyItemId);
       const url = URL.createObjectURL(blob);
-      setAudioUrl(url);
-      if (audioRef.current) {
-        audioRef.current.src = url;
-        audioRef.current.play();
-      }
+      
+      const audio = new Audio(url);
+      historyAudioRef.current = audio;
+      
+      audio.onended = () => {
+        setPlayingHistoryId(null);
+      };
+      
+      await audio.play();
     } catch (err) {
       console.error('Error playing history audio', err);
-    } finally {
       setPlayingHistoryId(null);
     }
+  };
+
+  const toggleExpand = (id: string) => {
+    setExpandedItems(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   };
 
   const calculateCost = () => {
@@ -213,34 +238,53 @@ function App() {
   };
 
   return (
-    <div className="container animate-fade-in">
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-        <div>
-          <h1 className="text-gradient" style={{ fontSize: '2rem', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <Zap size={32} color="var(--accent-primary)" />
-            Liquid Voice
-          </h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Powered by ElevenLabs</p>
-        </div>
-        
-        {isKeySaved && subscription && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <button 
-              className="glass-button" 
-              onClick={() => setShowHistory(true)}
-              style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '0.5rem 1rem' }}
-            >
-              <Clock size={16} /> History
-            </button>
-            <div className="glass-panel" style={{ padding: '0.5rem 1rem', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '2px' }}>Remaining Quota</div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--success)' }}>
-                {subscription.character_limit - subscription.character_count} <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>chars</span>
+    <div style={{ display: 'flex', width: '100vw', minHeight: '100vh', overflowX: 'hidden', position: 'relative' }}>
+      {/* Main App Content */}
+      <div 
+        className="container animate-fade-in" 
+        style={{ 
+          flex: 1, 
+          transition: 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)', 
+          transform: showHistory ? 'translateX(-380px)' : 'translateX(0)',
+          width: showHistory ? 'calc(100% - 380px)' : '100%'
+        }}
+      >
+        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+          <div>
+            <h1 className="text-gradient" style={{ fontSize: '2rem', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <Zap size={32} color="var(--accent-primary)" />
+              Liquid Voice
+            </h1>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Powered by ElevenLabs</p>
+          </div>
+          
+          {isKeySaved && subscription && (
+            <div style={{ display: 'flex', alignItems: 'stretch', gap: '1rem', height: '100%' }}>
+              <button 
+                onClick={() => setShowHistory(!showHistory)}
+                style={{ 
+                  display: 'flex', alignItems: 'center', gap: '8px', padding: '0.5rem 1rem',
+                  background: showHistory ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.02)', 
+                  border: '1px solid rgba(255,255,255,0.05)', 
+                  borderRadius: '12px', cursor: 'pointer', color: 'var(--text-primary)',
+                  transition: 'background 0.2s ease',
+                  backdropFilter: 'blur(10px)'
+                }}
+                onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                onMouseOut={(e) => e.currentTarget.style.background = showHistory ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.02)'}
+              >
+                <Clock size={16} /> 
+                <span style={{ fontSize: '0.85rem', fontWeight: 500 }}>History</span>
+              </button>
+              <div className="glass-panel" style={{ padding: '0.5rem 1rem', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '2px' }}>Remaining Quota</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--success)' }}>
+                  {subscription.character_limit - subscription.character_count} <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>chars</span>
+                </div>
               </div>
             </div>
-          </div>
-        )}
-      </header>
+          )}
+        </header>
 
       {!isKeySaved ? (
         <div className="glass-panel" style={{ maxWidth: '600px', margin: '0 auto', padding: '2rem', textAlign: 'center' }}>
@@ -534,76 +578,90 @@ function App() {
         </div>
       )}
 
-      {/* History Modal */}
-      {showHistory && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
-          background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100
-        }} onClick={(e) => {
-          if (e.target === e.currentTarget) setShowHistory(false);
-        }}>
-          <div className="glass-panel animate-fade-in" style={{ 
-            width: '100%', maxWidth: '600px', maxHeight: '80vh', 
-            display: 'flex', flexDirection: 'column', padding: 0,
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
-          }}>
-            <div style={{ 
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
-              padding: '1.5rem', borderBottom: '1px solid var(--glass-border)' 
-            }}>
-              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '1.2rem' }}>
-                <Clock size={20} color="var(--accent-primary)" /> Generation History
-              </h3>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button className="glass-button" onClick={fetchHistoryData} disabled={isLoadingHistory} style={{ padding: '6px 12px', fontSize: '0.85rem' }}>
-                  {isLoadingHistory ? 'Refreshing...' : 'Refresh'}
-                </button>
-                <button className="glass-button" onClick={() => setShowHistory(false)} style={{ padding: '6px' }}>
-                  <X size={20} />
-                </button>
-              </div>
-            </div>
-            
-            <div style={{ padding: '1.5rem', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {historyItems.length === 0 ? (
-                <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem 0' }}>
-                  No generation history found.
-                </div>
-              ) : (
-                historyItems.map((item) => (
-                  <div key={item.history_item_id} style={{ background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--glass-border)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
-                      <div style={{ flex: 1, paddingRight: '1rem' }}>
-                        <p style={{ fontSize: '0.9rem', color: 'var(--text-primary)', margin: 0, lineHeight: 1.5 }}>
-                          "{item.text}"
-                        </p>
-                      </div>
-                      <button 
-                        className="glass-button" 
-                        style={{ padding: '6px 12px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}
-                        onClick={() => handlePlayHistory(item.history_item_id)}
-                        disabled={playingHistoryId === item.history_item_id}
-                      >
-                        {playingHistoryId === item.history_item_id ? <Activity className="animate-spin" size={14} /> : <Volume2 size={14} />} 
-                        Play
-                      </button>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                      <span>Voice ID: {item.voice_id}</span>
-                      <span>{new Date(item.date_unix * 1000).toLocaleString()}</span>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-      )}
       {/* Decorative Glow Elements */}
       <div className="bg-glow-1"></div>
       <div className="bg-glow-2"></div>
     </div>
+    
+    {/* Side Panel for History */}
+    <div style={{
+      position: 'fixed', top: 0, right: 0, bottom: 0, width: '380px',
+      background: 'var(--background)',
+      borderLeft: '1px solid var(--glass-border)',
+      boxShadow: '-10px 0 30px rgba(0,0,0,0.5)',
+      transform: showHistory ? 'translateX(0)' : 'translateX(100%)',
+      transition: 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+      zIndex: 100,
+      display: 'flex', flexDirection: 'column'
+    }}>
+      <div style={{ 
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
+        padding: '1.5rem', borderBottom: '1px solid var(--glass-border)' 
+      }}>
+        <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '1.1rem' }}>
+          <Clock size={18} color="var(--accent-primary)" /> Generation History
+        </h3>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button className="glass-button" onClick={fetchHistoryData} disabled={isLoadingHistory} style={{ padding: '6px 12px', fontSize: '0.85rem' }}>
+            {isLoadingHistory ? 'Refreshing...' : 'Refresh'}
+          </button>
+          <button className="glass-button" onClick={() => setShowHistory(false)} style={{ padding: '6px' }}>
+            <X size={18} />
+          </button>
+        </div>
+      </div>
+      
+      <div style={{ padding: '1rem', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        {historyItems.length === 0 ? (
+          <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem 0', fontSize: '0.9rem' }}>
+            No generation history found.
+          </div>
+        ) : (
+          historyItems.map((item) => {
+            const isExpanded = expandedItems.has(item.history_item_id);
+            const shouldTruncate = item.text.length > 80;
+            const textPreview = shouldTruncate && !isExpanded ? item.text.substring(0, 80) + '...' : item.text;
+            
+            return (
+            <div key={item.history_item_id} style={{ background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--glass-border)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem', gap: '12px' }}>
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-primary)', margin: 0, lineHeight: 1.5 }}>
+                    "{textPreview}"
+                  </p>
+                  {shouldTruncate && (
+                    <button 
+                      onClick={() => toggleExpand(item.history_item_id)}
+                      style={{ background: 'none', border: 'none', color: 'var(--accent-primary)', fontSize: '0.75rem', padding: '4px 0', cursor: 'pointer', marginTop: '4px' }}
+                    >
+                      {isExpanded ? 'Show less' : 'Show more'}
+                    </button>
+                  )}
+                </div>
+                <button 
+                  className="glass-button" 
+                  style={{ 
+                    padding: '8px', 
+                    borderRadius: '50%',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: playingHistoryId === item.history_item_id ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.05)',
+                    color: playingHistoryId === item.history_item_id ? 'var(--accent-primary)' : 'var(--text-primary)'
+                  }}
+                  onClick={() => handlePlayHistory(item.history_item_id)}
+                >
+                  {playingHistoryId === item.history_item_id ? <Activity className="animate-spin" size={18} /> : <Volume2 size={18} />} 
+                </button>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                <span>Voice: {item.voice_name || item.voice_id}</span>
+                <span>{new Date(item.date_unix * 1000).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+              </div>
+            </div>
+          )})
+        )}
+      </div>
+    </div>
+  </div>
   );
 }
 
