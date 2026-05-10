@@ -124,7 +124,8 @@ export const getHistoryAudio = async (apiKey: string, historyItemId: string): Pr
       },
       responseType: 'blob',
     });
-    return response.data;
+    // Force the mime type to audio/mpeg so the browser recognizes the audio blob
+    return new Blob([response.data], { type: 'audio/mpeg' });
   } catch (error) {
     console.error('Error fetching history audio:', error);
     throw new Error('Failed to fetch history audio.');
