@@ -600,9 +600,6 @@ function App() {
           </div>
         </div>
       )}
-        </div>
-      )}
-
       {/* Decorative Glow Elements */}
       <div className="bg-glow-1"></div>
       <div className="bg-glow-2"></div>
