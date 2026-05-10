@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { 
   Settings, Download, Lock, Key, Activity, 
-  Volume2, Mic2, AlertCircle, Cpu, Zap, FileAudio, X, Clock
+  Volume2, Mic2, AlertCircle, Cpu, Zap, FileAudio, X, Clock, Square
 } from 'lucide-react';
 import { 
   getVoices, generateAudio, getUserSubscription, getHistory, getHistoryAudio,
@@ -32,9 +32,11 @@ function App() {
   const [historyItems, setHistoryItems] = useState<HistoryItem[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [playingHistoryId, setPlayingHistoryId] = useState<string | null>(null);
+  const [loadingHistoryId, setLoadingHistoryId] = useState<string | null>(null);
+  const [historyPlayError, setHistoryPlayError] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
-  const historyAudioRef = useRef<HTMLAudioElement | null>(null);
+  const historyAudioElementRef = useRef<HTMLAudioElement>(null);
 
   // Voice Settings State
   const [settings, setSettings] = useState<VoiceSettings>(() => {
@@ -177,32 +179,38 @@ function App() {
   };
 
   const handlePlayHistory = async (historyItemId: string) => {
-    // Stop currently playing history audio if any
-    if (historyAudioRef.current) {
-      historyAudioRef.current.pause();
-    }
+    setHistoryPlayError(null);
+    const audioEl = historyAudioElementRef.current;
     
     // If clicking the same item that's playing, just stop it and return
     if (playingHistoryId === historyItemId) {
+      if (audioEl) audioEl.pause();
       setPlayingHistoryId(null);
       return;
     }
 
-    setPlayingHistoryId(historyItemId);
+    // Stop currently playing history audio if any
+    if (audioEl) {
+      audioEl.pause();
+      setPlayingHistoryId(null);
+    }
+    
+    setLoadingHistoryId(historyItemId);
     try {
       const blob = await getHistoryAudio(apiKey, historyItemId);
       const url = URL.createObjectURL(blob);
       
-      const audio = new Audio(url);
-      historyAudioRef.current = audio;
-      
-      audio.onended = () => {
-        setPlayingHistoryId(null);
-      };
-      
-      await audio.play();
-    } catch (err) {
+      if (audioEl) {
+        audioEl.src = url;
+        audioEl.onended = () => setPlayingHistoryId(null);
+        await audioEl.play();
+        setLoadingHistoryId(null);
+        setPlayingHistoryId(historyItemId);
+      }
+    } catch (err: any) {
       console.error('Error playing history audio', err);
+      setHistoryPlayError('Failed to fetch or play audio. It might be unavailable or deleted on ElevenLabs.');
+      setLoadingHistoryId(null);
       setPlayingHistoryId(null);
     }
   };
@@ -612,6 +620,12 @@ function App() {
       </div>
       
       <div style={{ padding: '1rem', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        {historyPlayError && (
+          <div style={{ padding: '1rem', background: 'rgba(255, 51, 102, 0.1)', color: 'var(--danger)', borderRadius: '8px', border: '1px solid rgba(255, 51, 102, 0.2)', fontSize: '0.85rem' }}>
+            <strong>Playback Error:</strong> {historyPlayError}
+          </div>
+        )}
+        
         {historyItems.length === 0 ? (
           <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem 0', fontSize: '0.9rem' }}>
             No generation history found.
@@ -622,6 +636,10 @@ function App() {
             const isExpanded = expandedItems.has(item.history_item_id);
             const shouldTruncate = itemText.length > 80;
             const textPreview = shouldTruncate && !isExpanded ? itemText.substring(0, 80) + '...' : itemText;
+            
+            const isPlaying = playingHistoryId === item.history_item_id;
+            const isLoading = loadingHistoryId === item.history_item_id;
+            const isActive = isPlaying || isLoading;
             
             return (
             <div key={item.history_item_id} style={{ background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--glass-border)' }}>
@@ -645,12 +663,14 @@ function App() {
                     padding: '8px', 
                     borderRadius: '50%',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: playingHistoryId === item.history_item_id ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.05)',
-                    color: playingHistoryId === item.history_item_id ? 'var(--accent-primary)' : 'var(--text-primary)'
+                    background: isActive ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.05)',
+                    color: isActive ? 'var(--accent-primary)' : 'var(--text-primary)'
                   }}
                   onClick={() => handlePlayHistory(item.history_item_id)}
                 >
-                  {playingHistoryId === item.history_item_id ? <Activity className="animate-spin" size={18} /> : <Volume2 size={18} />} 
+                  {isLoading ? <Activity className="animate-spin" size={18} /> : 
+                   isPlaying ? <Square size={14} fill="currentColor" /> : 
+                   <Volume2 size={18} />} 
                 </button>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
@@ -661,6 +681,7 @@ function App() {
           )})
         )}
       </div>
+      <audio ref={historyAudioElementRef} style={{ display: 'none' }} />
     </div>
   </div>
   );
