@@ -65,6 +65,7 @@ function App() {
   const [text, setText] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [audioFileName, setAudioFileName] = useState('voiceover');
   const [generateError, setGenerateError] = useState('');
 
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -565,11 +566,32 @@ function App() {
                   <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '1rem' }}>
                     <Volume2 size={18} color="var(--success)" /> Audio Ready
                   </h3>
-                  <a href={audioUrl} download={`voiceover_${new Date().getTime()}.${selectedFormat.includes('mp3') ? 'mp3' : 'wav'}`} style={{ textDecoration: 'none' }}>
+                  <a
+                    href={audioUrl}
+                    download={`${audioFileName.trim() || 'voiceover'}.${selectedFormat.includes('mp3') ? 'mp3' : 'wav'}`}
+                    style={{ textDecoration: 'none' }}
+                  >
                     <button className="glass-button" style={{ padding: '6px 12px', fontSize: '0.85rem' }}>
                       <Download size={14} /> Download
                     </button>
                   </a>
+                </div>
+
+                <div style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1rem' }}>
+                  <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>File name:</label>
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <input
+                      type="text"
+                      className="glass-input"
+                      style={{ flex: 1, padding: '6px 10px', fontSize: '0.85rem' }}
+                      value={audioFileName}
+                      onChange={(e) => setAudioFileName(e.target.value)}
+                      placeholder="voiceover"
+                    />
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                      .{selectedFormat.includes('mp3') ? 'mp3' : 'wav'}
+                    </span>
+                  </div>
                 </div>
                 
                 <audio 
